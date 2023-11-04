@@ -3,6 +3,7 @@ This program is a copy and modification of deepchem.utils.molecule_feature_utils
 
 Original source code:
 - https://github.com/deepchem/deepchem/blob/0611ac54e66589956435a7ea30a91f80b49d88d5/deepchem/utils/molecule_feature_utils.py
+- https://github.com/deepchem/deepchem/blob/0df62b6e6315509dd1c7c0ef8b6caf5f253b519b/deepchem/feat/molecule_featurizers/mol_graph_conv_featurizer.py
 
 License:
 - https://github.com/deepchem/deepchem/blob/0611ac54e66589956435a7ea30a91f80b49d88d5/LICENSE
@@ -22,6 +23,9 @@ from typing import List, Union, Tuple
 
 import numpy as np
 import rdkit.Chem.rdchem
+
+import torch
+import torch_geometric.data
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +126,184 @@ ALLEN_ELECTRONEGATIVTY = {  # Allen scale electronegativity
     "Fr": 0.67,
     "Ra": 0.89,
 }
+
+
+def _construct_atom_feature(
+    atom: rdkit.Chem.rdchem.Atom,
+    h_bond_infos: List[Tuple[int, str]],
+    use_chirality: bool,
+    use_partial_charge: bool,
+) -> np.ndarray:
+    """Construct an atom feature from a RDKit atom object.
+
+    Parameters
+    ----------
+    atom: rdkit.Chem.rdchem.Atom
+        RDKit atom object
+    h_bond_infos: List[Tuple[int, str]]
+        A list of tuple `(atom_index, hydrogen_bonding_type)`.
+        Basically, it is expected that this value is the return value of
+        `construct_hydrogen_bonding_info`. The `hydrogen_bonding_type`
+        value is "Acceptor" or "Donor".
+    use_chirality: bool
+        Whether to use chirality information or not.
+    use_partial_charge: bool
+        Whether to use partial charge data or not.
+
+    Returns
+    -------
+    np.ndarray
+        A one-hot vector of the atom feature.
+
+    """  # noqa: E501
+    atom_type = get_atom_type_one_hot(atom)
+    formal_charge = get_atom_formal_charge(atom)
+    hybridization = get_atom_hybridization_one_hot(atom)
+    acceptor_donor = get_atom_hydrogen_bonding_one_hot(atom, h_bond_infos)
+    aromatic = get_atom_is_in_aromatic_one_hot(atom)
+    degree = get_atom_total_degree_one_hot(atom)
+    total_num_Hs = get_atom_total_num_Hs_one_hot(atom)
+    atom_feat = np.concatenate(
+        [
+            atom_type,
+            formal_charge,
+            hybridization,
+            acceptor_donor,
+            aromatic,
+            degree,
+            total_num_Hs,
+        ]
+    )
+
+    if use_chirality:
+        chirality = get_atom_chirality_one_hot(atom)
+        atom_feat = np.concatenate([atom_feat, np.array(chirality)])
+
+    if use_partial_charge:
+        partial_charge = get_atom_partial_charge(atom)
+        atom_feat = np.concatenate([atom_feat, np.array(partial_charge)])
+    return atom_feat
+
+
+def _construct_bond_feature(bond: rdkit.Chem.rdchem.Bond) -> np.ndarray:
+    """Construct a bond feature from a RDKit bond object.
+
+    Parameters
+    ---------
+    bond: rdkit.Chem.rdchem.Bond
+        RDKit bond object
+
+    Returns
+    -------
+    np.ndarray
+        A one-hot vector of the bond feature.
+
+    """  # noqa: E501
+    bond_type = get_bond_type_one_hot(bond)
+    same_ring = get_bond_is_in_same_ring_one_hot(bond)
+    conjugated = get_bond_is_conjugated_one_hot(bond)
+    stereo = get_bond_stereo_one_hot(bond)
+    return np.concatenate([bond_type, same_ring, conjugated, stereo])
+
+
+def featurize(
+    self,
+    mol: rdkit.Chem.rdchem.Mol,
+    use_chirality: bool = False,
+    use_partial_charge: bool = False,
+) -> torch_geometric.data.Data:
+    """Calculate molecule graph features from RDKit mol object.
+
+    Parameters
+    ----------
+    mol: rdkit.Chem.rdchem.Mol
+        RDKit mol object.
+
+    Returns
+    -------
+    graph: GraphData
+        A molecule graph with some features.
+
+    """  # noqa: E501
+    assert mol.GetNumAtoms() > 1, (
+        "More than one atom should be present"
+        " in the molecule for this featurizer to work."
+    )
+
+    if self.use_partial_charge:
+        try:
+            mol.GetAtomWithIdx(0).GetProp("_GasteigerCharge")
+        except Exception:  # HACK: should be more specific
+            # If partial charges were not computed
+            try:
+                from rdkit.Chem import AllChem
+
+                AllChem.ComputeGasteigerCharges(mol)
+            except ModuleNotFoundError:
+                raise ImportError("This class requires RDKit to be installed.")
+
+    # construct atom (node) feature
+    h_bond_infos = construct_hydrogen_bonding_info(mol)
+    atom_features = np.asarray(
+        [
+            _construct_atom_feature(
+                atom,
+                h_bond_infos,
+                use_chirality,
+                use_partial_charge,
+            )
+            for atom in mol.GetAtoms()
+        ],
+        dtype=float,
+    )
+
+    # construct edge (bond) index
+    src, dest = [], []
+    for bond in mol.GetBonds():
+        # add edge list considering a directed graph
+        start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        src += [start, end]
+        dest += [end, start]
+
+    # construct edge (bond) feature
+    bond_features = None  # deafult None
+    if self.use_edges:
+        features = []
+        for bond in mol.GetBonds():
+            features += 2 * [_construct_bond_feature(bond)]
+        bond_features = np.asarray(features, dtype=float)
+
+    # load_sdf_files returns pos as strings but user can also specify
+    # numpy arrays for atom coordinates
+    # pos = []
+    # if "pos_x" in kwargs and "pos_y" in kwargs and "pos_z" in kwargs:
+    #     if isinstance(kwargs["pos_x"], str):
+    #         pos_x = eval(kwargs["pos_x"])
+    #     elif isinstance(kwargs["pos_x"], np.ndarray):
+    #         pos_x = kwargs["pos_x"]
+    #     if isinstance(kwargs["pos_y"], str):
+    #         pos_y = eval(kwargs["pos_y"])
+    #     elif isinstance(kwargs["pos_y"], np.ndarray):
+    #         pos_y = kwargs["pos_y"]
+    #     if isinstance(kwargs["pos_z"], str):
+    #         pos_z = eval(kwargs["pos_z"])
+    #     elif isinstance(kwargs["pos_z"], np.ndarray):
+    #         pos_z = kwargs["pos_z"]
+
+    #     for x, y, z in zip(pos_x, pos_y, pos_z):
+    #         pos.append([x, y, z])
+    #     node_pos_features = np.asarray(pos)
+    # else:
+    #     node_pos_features = None
+    # return GraphData(node_features=atom_features,
+    #                      edge_index=np.asarray([src, dest], dtype=int),
+    #                      edge_features=bond_features,
+    #                      node_pos_features=node_pos_features)
+    return torch_geometric.data.Data(
+        x=torch.tensor(atom_features, dtype=torch.float),
+        edge_index=torch.tensor([src, dest], dtype=torch.long),
+        edge_attr=torch.tensor(bond_features, dtype=torch.float),
+    )
 
 
 class _ChemicalFeaturesFactory:
