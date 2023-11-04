@@ -1,0 +1,5 @@
+https://www.kaggle.com/datasets/sorkun/aqsoldb-a-curated-aqueous-solubility-dataset/
+
+Paper: Nature Scientific Data - https://doi.org/10.1038/s41597-019-0151-1
+
+Reproducible code: Code Ocean - https://doi.org/10.24433/CO.1992938.v1
