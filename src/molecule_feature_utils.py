@@ -21,8 +21,7 @@ import logging
 from typing import List, Union, Tuple
 
 import numpy as np
-
-from deepchem.utils.typing import RDKitAtom, RDKitBond, RDKitMol
+import rdkit.Chem.rdchem
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +125,7 @@ ALLEN_ELECTRONEGATIVTY = {  # Allen scale electronegativity
 
 
 class _ChemicalFeaturesFactory:
-    """This is a singleton class for RDKit base features."""
+    """This is a singleton class for RDKit base features."""  # noqa: E501
 
     _instance = None
 
@@ -182,7 +181,7 @@ def one_hot_encode(
     ------
     ValueError
         If include_unknown_set is False and `val` is not in `allowable_set`.
-    """
+    """  # noqa: E501
     if include_unknown_set is False:
         if val not in allowable_set:
             logger.info(
@@ -200,7 +199,7 @@ def one_hot_encode(
 
     try:
         one_hot[allowable_set.index(val)] = 1.0  # type: ignore
-    except:
+    except Exception:  # HACK: should be certain exception
         if include_unknown_set:
             # If include_unknown_set is True, set the last index is 1.
             one_hot[-1] = 1.0
@@ -215,7 +214,7 @@ def one_hot_encode(
 
 
 def get_atom_type_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[str] = DEFAULT_ATOM_TYPE_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -237,11 +236,13 @@ def get_atom_type_one_hot(
         An one-hot vector of atom types.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(atom.GetSymbol(), allowable_set, include_unknown_set)
 
 
-def construct_hydrogen_bonding_info(mol: RDKitMol) -> List[Tuple[int, str]]:
+def construct_hydrogen_bonding_info(
+    mol: rdkit.Chem.rdchem.Mol,
+) -> List[Tuple[int, str]]:
     """Construct hydrogen bonding infos about a molecule.
 
     Parameters
@@ -254,7 +255,7 @@ def construct_hydrogen_bonding_info(mol: RDKitMol) -> List[Tuple[int, str]]:
     List[Tuple[int, str]]
         A list of tuple `(atom_index, hydrogen_bonding_type)`.
         The `hydrogen_bonding_type` value is "Acceptor" or "Donor".
-    """
+    """  # noqa: E501
     factory = _ChemicalFeaturesFactory.get_instance()
     feats = factory.GetFeaturesForMol(mol)
     hydrogen_bonding = []
@@ -264,7 +265,7 @@ def construct_hydrogen_bonding_info(mol: RDKitMol) -> List[Tuple[int, str]]:
 
 
 def get_atom_hydrogen_bonding_one_hot(
-    atom: RDKitAtom, hydrogen_bonding: List[Tuple[int, str]]
+    atom: rdkit.Chem.rdchem.Atom, hydrogen_bonding: List[Tuple[int, str]]
 ) -> List[float]:
     """Get an one-hot feat about whether an atom accepts electrons or donates electrons.
 
@@ -281,7 +282,7 @@ def get_atom_hydrogen_bonding_one_hot(
     List[float]
         A one-hot vector of the ring size type. The first element
         indicates "Donor", and the second element indicates "Acceptor".
-    """
+    """  # noqa: E501
     one_hot = [0.0, 0.0]
     atom_idx = atom.GetIdx()
     for hydrogen_bonding_tuple in hydrogen_bonding:
@@ -293,7 +294,9 @@ def get_atom_hydrogen_bonding_one_hot(
     return one_hot
 
 
-def get_atom_is_in_aromatic_one_hot(atom: RDKitAtom) -> List[float]:
+def get_atom_is_in_aromatic_one_hot(
+    atom: rdkit.Chem.rdchem.Atom,
+) -> List[float]:
     """Get ans one-hot feature about whether an atom is in aromatic system or not.
 
     Parameters
@@ -305,12 +308,12 @@ def get_atom_is_in_aromatic_one_hot(atom: RDKitAtom) -> List[float]:
     -------
     List[float]
         A vector of whether an atom is in aromatic system or not.
-    """
+    """  # noqa: E501
     return [float(atom.GetIsAromatic())]
 
 
 def get_atom_hybridization_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[str] = DEFAULT_HYBRIDIZATION_SET,
     include_unknown_set: bool = False,
 ) -> List[float]:
@@ -331,14 +334,14 @@ def get_atom_hybridization_one_hot(
         An one-hot vector of the hybridization type.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         str(atom.GetHybridization()), allowable_set, include_unknown_set
     )
 
 
 def get_atom_total_num_Hs_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[int] = DEFAULT_TOTAL_NUM_Hs_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -359,13 +362,13 @@ def get_atom_total_num_Hs_one_hot(
         A one-hot vector of the number of hydrogens which an atom has.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         atom.GetTotalNumHs(), allowable_set, include_unknown_set
     )
 
 
-def get_atom_chirality_one_hot(atom: RDKitAtom) -> List[float]:
+def get_atom_chirality_one_hot(atom: rdkit.Chem.rdchem.Atom) -> List[float]:
     """Get an one-hot feature about an atom chirality type.
 
     Parameters
@@ -378,7 +381,7 @@ def get_atom_chirality_one_hot(atom: RDKitAtom) -> List[float]:
     List[float]
         A one-hot vector of the chirality type. The first element
         indicates "R", and the second element indicates "S".
-    """
+    """  # noqa: E501
     one_hot = [0.0, 0.0]
     try:
         chiral_type = atom.GetProp("_CIPCode")
@@ -386,12 +389,12 @@ def get_atom_chirality_one_hot(atom: RDKitAtom) -> List[float]:
             one_hot[0] = 1.0
         elif chiral_type == "S":
             one_hot[1] = 1.0
-    except:
+    except Exception:  # HACK: should be ce
         pass
     return one_hot
 
 
-def get_atom_formal_charge(atom: RDKitAtom) -> List[float]:
+def get_atom_formal_charge(atom: rdkit.Chem.rdchem.Atom) -> List[float]:
     """Get a formal charge of an atom.
 
     Parameters
@@ -403,12 +406,12 @@ def get_atom_formal_charge(atom: RDKitAtom) -> List[float]:
     -------
     List[float]
         A vector of the formal charge.
-    """
+    """  # noqa: E501
     return [float(atom.GetFormalCharge())]
 
 
 def get_atom_formal_charge_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[int] = DEFAULT_FORMAL_CHARGE_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -428,13 +431,13 @@ def get_atom_formal_charge_one_hot(
     -------
     List[float]
         A vector of the formal charge.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         atom.GetFormalCharge(), allowable_set, include_unknown_set
     )
 
 
-def get_atom_partial_charge(atom: RDKitAtom) -> List[float]:
+def get_atom_partial_charge(atom: rdkit.Chem.rdchem.Atom) -> List[float]:
     """Get a partial charge of an atom.
 
     Parameters
@@ -451,7 +454,7 @@ def get_atom_partial_charge(atom: RDKitAtom) -> List[float]:
     -----
     Before using this function, you must calculate `GasteigerCharge`
     like `AllChem.ComputeGasteigerCharges(mol)`.
-    """
+    """  # noqa: E501
     gasteiger_charge = atom.GetProp("_GasteigerCharge")
     if gasteiger_charge in ["-nan", "nan", "-inf", "inf"]:
         gasteiger_charge = 0.0
@@ -459,7 +462,7 @@ def get_atom_partial_charge(atom: RDKitAtom) -> List[float]:
 
 
 def get_atom_total_degree_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[int] = DEFAULT_TOTAL_DEGREE_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -480,14 +483,14 @@ def get_atom_total_degree_one_hot(
         A one-hot vector of the degree which an atom has.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         atom.GetTotalDegree(), allowable_set, include_unknown_set
     )
 
 
 def get_atom_implicit_valence_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[int] = DEFAULT_ATOM_IMPLICIT_VALENCE_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -509,14 +512,14 @@ def get_atom_implicit_valence_one_hot(
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
 
-    """
+    """  # noqa: E501
     return one_hot_encode(
         atom.GetImplicitValence(), allowable_set, include_unknown_set
     )
 
 
 def get_atom_explicit_valence_one_hot(
-    atom: RDKitAtom,
+    atom: rdkit.Chem.rdchem.Atom,
     allowable_set: List[int] = DEFAULT_ATOM_EXPLICIT_VALENCE_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -538,7 +541,7 @@ def get_atom_explicit_valence_one_hot(
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
 
-    """
+    """  # noqa: E501
     return one_hot_encode(
         atom.GetExplicitValence(), allowable_set, include_unknown_set
     )
@@ -550,7 +553,7 @@ def get_atom_explicit_valence_one_hot(
 
 
 def get_bond_type_one_hot(
-    bond: RDKitBond,
+    bond: rdkit.Chem.rdchem.Bond,
     allowable_set: List[str] = DEFAULT_BOND_TYPE_SET,
     include_unknown_set: bool = False,
 ) -> List[float]:
@@ -571,13 +574,15 @@ def get_bond_type_one_hot(
         A one-hot vector of the bond type.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         str(bond.GetBondType()), allowable_set, include_unknown_set
     )
 
 
-def get_bond_is_in_same_ring_one_hot(bond: RDKitBond) -> List[float]:
+def get_bond_is_in_same_ring_one_hot(
+    bond: rdkit.Chem.rdchem.Bond,
+) -> List[float]:
     """Get an one-hot feature about whether atoms of a bond is in the same ring or not.
 
     Parameters
@@ -589,11 +594,13 @@ def get_bond_is_in_same_ring_one_hot(bond: RDKitBond) -> List[float]:
     -------
     List[float]
         A one-hot vector of whether a bond is in the same ring or not.
-    """
+    """  # noqa: E501
     return [int(bond.IsInRing())]
 
 
-def get_bond_is_conjugated_one_hot(bond: RDKitBond) -> List[float]:
+def get_bond_is_conjugated_one_hot(
+    bond: rdkit.Chem.rdchem.Bond,
+) -> List[float]:
     """Get an one-hot feature about whether a bond is conjugated or not.
 
     Parameters
@@ -605,12 +612,12 @@ def get_bond_is_conjugated_one_hot(bond: RDKitBond) -> List[float]:
     -------
     List[float]
         A one-hot vector of whether a bond is conjugated or not.
-    """
+    """  # noqa: E501
     return [int(bond.GetIsConjugated())]
 
 
 def get_bond_stereo_one_hot(
-    bond: RDKitBond,
+    bond: rdkit.Chem.rdchem.Bond,
     allowable_set: List[str] = DEFAULT_BOND_STEREO_SET,
     include_unknown_set: bool = True,
 ) -> List[float]:
@@ -632,14 +639,14 @@ def get_bond_stereo_one_hot(
         A one-hot vector of the stereo configuration of a bond.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     return one_hot_encode(
         str(bond.GetStereo()), allowable_set, include_unknown_set
     )
 
 
 def get_bond_graph_distance_one_hot(
-    bond: RDKitBond,
+    bond: rdkit.Chem.rdchem.Bond,
     graph_dist_matrix: np.ndarray,
     allowable_set: List[int] = DEFAULT_GRAPH_DISTANCE_SET,
     include_unknown_set: bool = True,
@@ -663,7 +670,7 @@ def get_bond_graph_distance_one_hot(
         A one-hot vector of the graph distance.
         If `include_unknown_set` is False, the length is `len(allowable_set)`.
         If `include_unknown_set` is True, the length is `len(allowable_set) + 1`.
-    """
+    """  # noqa: E501
     graph_dist = graph_dist_matrix[
         bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
     ]
