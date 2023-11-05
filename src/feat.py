@@ -23,6 +23,7 @@ from typing import List, Union, Tuple
 
 import numpy as np
 import rdkit.Chem.rdchem
+from rdkit import Chem
 
 import torch
 import torch_geometric.data
@@ -206,11 +207,11 @@ def _construct_bond_feature(bond: rdkit.Chem.rdchem.Bond) -> np.ndarray:
     return np.concatenate([bond_type, same_ring, conjugated, stereo])
 
 
-def featurize(
-    self,
+def mol2data(
     mol: rdkit.Chem.rdchem.Mol,
     use_chirality: bool = False,
     use_partial_charge: bool = False,
+    use_edges: bool = False,
 ) -> torch_geometric.data.Data:
     """Calculate molecule graph features from RDKit mol object.
 
@@ -225,12 +226,15 @@ def featurize(
         A molecule graph with some features.
 
     """  # noqa: E501
-    assert mol.GetNumAtoms() > 1, (
-        "More than one atom should be present"
-        " in the molecule for this featurizer to work."
-    )
+    if mol.GetNumAtoms() == 0:
+        raise ValueError(
+            "More than one atom should be present"
+            " in the molecule for this featurizer to work. ({})".format(
+                Chem.MolToSmiles(mol)
+            )  # noqa: E501
+        )
 
-    if self.use_partial_charge:
+    if use_partial_charge:
         try:
             mol.GetAtomWithIdx(0).GetProp("_GasteigerCharge")
         except Exception:  # HACK: should be more specific
@@ -267,7 +271,7 @@ def featurize(
 
     # construct edge (bond) feature
     bond_features = None  # deafult None
-    if self.use_edges:
+    if use_edges:
         features = []
         for bond in mol.GetBonds():
             features += 2 * [_construct_bond_feature(bond)]
@@ -299,10 +303,17 @@ def featurize(
     #                      edge_index=np.asarray([src, dest], dtype=int),
     #                      edge_features=bond_features,
     #                      node_pos_features=node_pos_features)
+
+    x = torch.tensor(atom_features, dtype=torch.float)
+    edge_index = torch.tensor([src, dest], dtype=torch.long)
+    edge_attr = (
+        torch.tensor(bond_features, dtype=torch.float) if use_edges else None
+    )
+
     return torch_geometric.data.Data(
-        x=torch.tensor(atom_features, dtype=torch.float),
-        edge_index=torch.tensor([src, dest], dtype=torch.long),
-        edge_attr=torch.tensor(bond_features, dtype=torch.float),
+        x=x,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
     )
 
 
