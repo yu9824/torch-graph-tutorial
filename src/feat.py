@@ -17,6 +17,7 @@ Repositories:
 - https://github.com/awslabs/dgl-lifesci
 """  # noqa: E501
 
+from typing import Optional
 import os
 import logging
 from typing import List, Union, Tuple
@@ -209,6 +210,7 @@ def _construct_bond_feature(bond: rdkit.Chem.rdchem.Bond) -> np.ndarray:
 
 def mol2data(
     mol: rdkit.Chem.rdchem.Mol,
+    y: Optional[float] = None,
     use_chirality: bool = False,
     use_partial_charge: bool = False,
     use_edges: bool = False,
@@ -219,6 +221,15 @@ def mol2data(
     ----------
     mol: rdkit.Chem.rdchem.Mol
         RDKit mol object.
+    y: Optional[float], default None
+        Target value.
+    use_chirality: bool, default False
+        Whether to use chirality information or not.
+    use_partial_charge: bool, default False
+        Whether to use partial charge data or not.
+    use_edges: bool, default False
+        Whether to use edge features or not.
+
 
     Returns
     -------
@@ -309,11 +320,13 @@ def mol2data(
     edge_attr = (
         torch.tensor(bond_features, dtype=torch.float) if use_edges else None
     )
+    y = torch.tensor([y], dtype=torch.float) if y is not None else None
 
     return torch_geometric.data.Data(
         x=x,
         edge_index=edge_index,
         edge_attr=edge_attr,
+        y=y,
     )
 
 
