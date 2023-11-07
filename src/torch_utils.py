@@ -18,12 +18,13 @@ import torch
 import torch.nn
 import torch.utils.data
 import torch_geometric.data
+import torch_geometric.loader
 
 # for type hint
 T = TypeVar("T")
 DataBatch = Union[torch_geometric.data.Batch, torch_geometric.data.Data]
 DataLoader = Union[
-    torch_geometric.data.DataLoader,
+    torch_geometric.loader.DataLoader,
     Iterable[DataBatch],
 ]
 LossFn = Union[
