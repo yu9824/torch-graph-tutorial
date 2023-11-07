@@ -288,6 +288,8 @@ def mol2data(
             features += 2 * [_construct_bond_feature(bond)]
         bond_features = np.asarray(features, dtype=float)
 
+    # HACK: Need pos or not in 'Data'?
+
     # load_sdf_files returns pos as strings but user can also specify
     # numpy arrays for atom coordinates
     # pos = []
