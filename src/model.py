@@ -100,7 +100,6 @@ class GCN(torch.nn.Module):
             x=x_conv2, edge_index=edge_index, edge_weight=edge_attr
         )
         x_conv3 = self.relu(x_conv3)
-        x_conv3 = self.dropout(x_conv3)
 
         # Global Pooling (stack different aggregations)
         # (reason) multiple nodes in one graph....
