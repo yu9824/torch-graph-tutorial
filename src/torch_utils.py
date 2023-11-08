@@ -12,7 +12,7 @@ import pkgutil
 
 import numpy as np
 import matplotlib.pyplot as plt
-import japanize_matplotlib  # noqa: F401
+import matplotlib.axes
 
 import torch
 import torch.nn
@@ -61,7 +61,7 @@ def fit(
     optimizer: torch.optim.Optimizer,
     criterion: LossFn,
     train_loader: DataLoader,
-    test_loader: DataLoader,
+    val_loader: DataLoader,
     device: torch.device = torch.device("cpu"),
     num_epochs: int = 100,
     history: np.ndarray = np.empty((0, 3)),
@@ -73,7 +73,7 @@ def fit(
         # 1エポックあたりの累積損失(平均化前)
         train_loss, val_loss = 0, 0
         # 1エポックあたりのデータ累積件数
-        n_train, n_test = 0, 0
+        n_train, n_val = 0, 0
 
         # 訓練フェーズ
         net.train()
@@ -120,28 +120,28 @@ def fit(
         # 予測フェーズ
         net.eval()
 
-        for data_test in test_loader:
+        for data_val in val_loader:
             # 1バッチあたりのデータ件数
-            test_batch_size = len(data_test)
+            val_batch_size = len(data_val)
             # 1エポックあたりのデータ累積件数
-            n_test += test_batch_size
+            n_val += val_batch_size
 
             # GPUヘ転送
-            data_test = data_test.to(device)
+            data_val = data_val.to(device)
 
             # 予測計算
-            y_pred_test = net(data_test)
+            y_pred_val = net(data_val)
 
             # 損失計算
-            loss_test = criterion(y_pred_test, data_test.y)
+            loss_val = criterion(y_pred_val, data_val.y)
 
             #  平均前の損失と正解数の計算
             # lossは平均計算が行われているので平均前の損失に戻して加算
-            val_loss += loss_test.item() * test_batch_size
+            val_loss += loss_val.item() * val_batch_size
 
         # 損失計算
         avg_train_loss = train_loss / n_train
-        avg_val_loss = val_loss / n_test
+        avg_val_loss = val_loss / n_val
         # 結果表示
         print(
             f"Epoch [{(epoch+1)}/{num_epochs+base_epochs}], "
@@ -155,7 +155,7 @@ def fit(
 
 
 # 学習ログ解析
-def evaluate_history(history: np.ndarray):
+def evaluate_history(history: np.ndarray) -> matplotlib.axes.Axes:
     # 損失と精度の確認
     print(f"初期状態: 損失: {history[0,2]:.5f}")
     print(f"最終状態: 損失: {history[-1,2]:.5f}")
@@ -166,16 +166,17 @@ def evaluate_history(history: np.ndarray):
     else:
         unit = num_epochs / 10
 
-    # 学習曲線の表示 (損失)
-    plt.figure(figsize=(9, 8))
-    plt.plot(history[:, 0], history[:, 1], "b", label="訓練")
-    plt.plot(history[:, 0], history[:, 2], "k", label="検証")
-    plt.xticks(np.arange(0, num_epochs + 1, unit))
-    plt.xlabel("繰り返し回数")
-    plt.ylabel("損失")
-    plt.title("学習曲線(損失)")
-    plt.legend()
-    plt.show()
+    fig, ax = plt.subplots(nrows=1, ncols=1, facecolor="w", figsize=(6.4, 4.8))
+    ax: matplotlib.axes.Axes
+    ax.plot(history[:, 0], history[:, 1], "b", label="train")
+    ax.plot(history[:, 0], history[:, 2], "k", label="validation")
+    ax.set_xticks(np.arange(0, num_epochs + 1, unit))
+    ax.set_xlabel("epoch")
+    ax.set_ylabel("loss")
+    ax.set_title("Training and validation loss history")
+    ax.legend()
+    fig.tight_layout()
+    return ax
 
 
 def torch_seed(seed: int = 123) -> None:
