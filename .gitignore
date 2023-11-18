@@ -1,5 +1,6 @@
 data/curated-solubility-dataset.csv
 data/logSdataset1290.csv
+logs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
